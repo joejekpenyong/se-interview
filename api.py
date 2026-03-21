@@ -17,6 +17,7 @@ app = FastAPI(
 
 class ChatRequest(BaseModel):
     message: str
+    thread_id: str = "default"
 
 
 class ChatResponse(BaseModel):
@@ -26,7 +27,8 @@ class ChatResponse(BaseModel):
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     """Send a message to the agent and get a response."""
-    result = agent.invoke({"messages": [HumanMessage(content=request.message)]})
+    config = {"configurable": {"thread_id": request.thread_id}}
+    result = agent.invoke({"messages": [HumanMessage(content=request.message)]}, config)
     return ChatResponse(response=result["messages"][-1].content)
 
 
