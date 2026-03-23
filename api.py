@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from langchain_core.messages import HumanMessage
@@ -8,11 +9,16 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 
 load_dotenv()
 
+# register(
+#     project_name="travel-assistant",
+#     endpoint="http://localhost:6006/v1/traces",
+#     auto_instrument=True,
+#     verbose=True
+# )
+
 register(
     project_name="travel-assistant",
-    endpoint="http://localhost:6006/v1/traces",
-    auto_instrument=True,
-    verbose=True
+    auto_instrument=True
 )
 #LangChainInstrumentor().instrument()
 
