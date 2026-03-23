@@ -102,6 +102,10 @@ def llm_call(state: MessagesState) -> dict:
                             "in any city. Use the appropriate tool when the user asks about "
                             "currency conversion or weather. Use web search for attractions, "
                             "hotels, flights, and general travel information."
+                            "When a user asks a question that requires multiple tools,"
+                            "identify ALL needed tools upfront and call them simultaneously"
+                            "in a single tool_node execution rather than making multiple"
+                            "sequential tool calls."
                         )
                     )
                 ]

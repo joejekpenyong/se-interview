@@ -3,8 +3,18 @@ from fastapi import FastAPI
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from agent import build_agent
+from phoenix.otel import register
+from openinference.instrumentation.langchain import LangChainInstrumentor
 
 load_dotenv()
+
+register(
+    project_name="travel-assistant",
+    endpoint="http://localhost:6006/v1/traces",
+    auto_instrument=True,
+    verbose=True
+)
+#LangChainInstrumentor().instrument()
 
 agent = build_agent()
 
