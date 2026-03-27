@@ -119,6 +119,8 @@ poetry run python evaluate.py
 
 The script connects to Phoenix Cloud, fetches all LLM spans from the project, runs the three evaluations below, and pushes the results back as span annotations. You will see the eval columns appear in the Phoenix spans view immediately after the script completes.
 
+Evaluation is not automatic — it runs as a manual batch job against collected traces. In production you would automate this either on a schedule or triggered after each deployment, so regressions in LLM behavior are caught before production traffic hits a new version.
+
 ### Evaluation methods
 
 **1. User frustration** (required)
