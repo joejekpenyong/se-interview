@@ -1,6 +1,6 @@
 # Travel Assistant Agent
 
-An LLM-powered travel assistant built with LangGraph, FastAPI, and Arize Phoenix. The agent helps users find travel information including weather, currency exchange rates, and destination recommendations.
+A production-ready LLM-powered travel assistant built with LangGraph, FastAPI, and Arize Phoenix. The agent helps users find travel information including weather, currency exchange rates, and destination recommendations.
 
 ## Features
 
@@ -105,20 +105,66 @@ curl http://localhost:8000/health
 poetry run pytest tests.py -v
 ```
 
-## Running evaluations
+## Evaluation
 
-Make sure your Phoenix Cloud credentials are set in `.env`, then:
+The evaluation pipeline uses LLM-as-judge: GPT-4o-mini reads each span's input and output, scores it against a rubric, and attaches the result back to the span in Phoenix Cloud as a filterable annotation. This lets you filter, sort, and investigate failure cases at any scale without reading every conversation manually.
+
+### Running the evaluation script
+
+Make sure the app has been running long enough to generate traces in Phoenix Cloud, then:
 
 ```bash
 poetry run python evaluate.py
 ```
 
-This fetches your traces from Phoenix Cloud and runs three LLM-as-judge evaluations:
-- **User frustration** — detects signs of user frustration in conversations
-- **Tool selection correctness** — checks whether the agent chose the right tools
-- **Answer completeness** — checks whether the agent fully addressed the user's request
+The script connects to Phoenix Cloud, fetches all LLM spans from the project, runs the three evaluations below, and pushes the results back as span annotations. You will see the eval columns appear in the Phoenix spans view immediately after the script completes.
 
-Results are pushed back to Phoenix Cloud as span annotations.
+### Evaluation methods
+
+**1. User frustration** (required)
+
+Detects signs of user frustration in the conversation — ALL CAPS input, impatient phrasing, complaints about previous responses, or expressions of urgency. Uses binary classification rails.
+
+```
+Rails: frustrated / not_frustrated
+```
+
+A frustrated session signals a user at churn risk. Filtering Phoenix to frustrated spans lets you investigate the root cause and identify patterns across many conversations at once.
+
+**2. Tool selection correctness** (custom)
+
+Checks whether the agent called the right tool for the user's query. A weather question should trigger `get_weather`, a currency question should trigger `get_exchange_rate`, and general destination questions should use web search. Penalizes unnecessary or missing tool calls.
+
+```
+Rails: correct / incorrect
+```
+
+Wrong tool selection produces a worse answer. This eval makes the error rate visible and verifiable — a system prompt change that improves tool routing will show up immediately in the scores.
+
+**3. Answer completeness** (custom)
+
+Checks whether the agent fully addressed every part of the user's request — all sub-questions answered, all requested details provided. An agent that answers only part of a multi-part question scores incomplete.
+
+```
+Rails: complete / incomplete
+```
+
+An incomplete answer means the user has to ask a follow-up or go elsewhere. This eval surfaces the gap between what the user asked and what the agent actually delivered.
+
+### Viewing results in Phoenix
+
+After running the script, open your Phoenix Cloud project. Evaluation results are attached to LLM spans specifically — the spans where the prompt and response text live. To see them, filter the spans view to `span_kind == 'LLM'`. The eval columns will not appear on root LangGraph spans or tool spans.
+
+Once filtered you can:
+
+- Filter to `user_frustration = frustrated` to find all at-risk sessions
+- Filter to `tool_selection_correctness = incorrect` to build a dataset of tool routing failures
+- Sort by `answer_completeness` to find the worst responses first
+- Use any combination as training data for prompt improvement
+
+### Usage notes
+
+The evaluation script currently fetches a maximum of 200 spans. For this project that is sufficient, but in a high-traffic production environment 200 spans may represent only a small and potentially stale slice of your traffic. To address this, increase the limit in `evaluate.py` or add a time window filter so the script always evaluates the most recent spans rather than the oldest 200.
 
 ## Project structure
 
@@ -167,3 +213,29 @@ All LLM calls and tool invocations are traced to Arize Phoenix Cloud via OpenTel
 5. GPT-4o reads the tool results and generates a response
 6. The full trace is sent to Phoenix Cloud
 7. The response is returned to the user
+
+## Production architecture notes
+
+### Memory
+
+`MemorySaver` stores conversation state in RAM inside a single process. This works in development but breaks in production where multiple container instances are running — each instance has its own memory and cannot see another instance's conversations. Replace `MemorySaver` with a Redis-backed checkpointer so all instances share the same conversation state.
+
+### Scaling
+
+The app is stateless once Redis handles memory, which means you can scale horizontally by running multiple container instances behind a load balancer. Add instances under load and remove them off-peak. No coordination between instances is needed.
+
+### Secrets management
+
+In development, secrets live in a `.env` file. In production, use a secrets manager such as AWS Secrets Manager or GCP Secret Manager. Secrets should be injected at runtime and never committed to the repository or baked into a Docker image.
+
+### Cost
+
+GPT-4o is the dominant cost driver at roughly $0.01 per request. In production, route simple single-tool queries to GPT-4o-mini (approximately 10x cheaper) and reserve GPT-4o for complex multi-part queries. Caching repeated queries — such as weather for popular destinations — will also reduce both cost and latency.
+
+### Latency
+
+The system prompt instructs the agent to identify all needed tools upfront and call them in a single parallel `tool_node` execution. This eliminated one redundant LLM call and reduced average latency from 8.7s to 8.2s. This optimisation was identified by comparing Phoenix traces before and after the change. Continued trace analysis is the most reliable way to find further latency improvements.
+
+### CI/CD
+
+Run `pytest tests.py` as a required step in your CI pipeline. No code should reach production without passing the unit test suite. Pair this with the evaluation script run against a staging environment to catch regressions in LLM behavior before they reach production traffic.
