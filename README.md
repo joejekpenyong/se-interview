@@ -239,3 +239,7 @@ The system prompt instructs the agent to identify all needed tools upfront and c
 ### CI/CD
 
 Run `pytest tests.py` as a required step in your CI pipeline. No code should reach production without passing the unit test suite. Pair this with the evaluation script run against a staging environment to catch regressions in LLM behavior before they reach production traffic.
+
+### Span processor
+
+This app uses `SimpleSpanProcessor`, which sends each span to Phoenix immediately as it is created — one HTTP request per span. In production, switch to `BatchSpanProcessor`, which queues spans and sends them in batches. This is significantly more efficient under load and is what Arize recommends for production environments. You will see a warning about this in the server startup logs.

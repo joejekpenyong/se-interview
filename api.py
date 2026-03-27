@@ -9,36 +9,25 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 
 load_dotenv()
 
-# register(
-#     project_name="travel-assistant",
-#     endpoint="http://localhost:6006/v1/traces",
-#     auto_instrument=True,
-#     verbose=True
-# )
-
 register(
     project_name="travel-assistant",
     auto_instrument=True
 )
-#LangChainInstrumentor().instrument()
 
 agent = build_agent()
 
 app = FastAPI(
-    title="LangGraph Agent API",
-    description="A simple API for interacting with a LangGraph agent that can search the web",
-    version="0.1.0",
+    title="Travel Assistant Agent API",
+    description="A travel assistant powered by LangGraph and GPT-4o. Supports web search, live weather lookup, and real-time currency conversion with full observability via Arize Phoenix.",
+    version="1.0.0",
 )
-
 
 class ChatRequest(BaseModel):
     message: str
     thread_id: str = "default"
 
-
 class ChatResponse(BaseModel):
     response: str
-
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
@@ -46,7 +35,6 @@ def chat(request: ChatRequest):
     config = {"configurable": {"thread_id": request.thread_id}}
     result = agent.invoke({"messages": [HumanMessage(content=request.message)]}, config)
     return ChatResponse(response=result["messages"][-1].content)
-
 
 @app.get("/health")
 def health():
