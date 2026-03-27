@@ -1,6 +1,6 @@
 # Travel Assistant Agent
 
-A production-ready LLM-powered travel assistant built with LangGraph, FastAPI, and Arize Phoenix. The agent helps users find travel information including weather, currency exchange rates, and destination recommendations.
+A simple LLM-powered travel assistant built with LangGraph, FastAPI, and Arize Phoenix. The agent helps users find travel information including weather, currency exchange rates, and destination recommendations.
 
 ## Features
 
